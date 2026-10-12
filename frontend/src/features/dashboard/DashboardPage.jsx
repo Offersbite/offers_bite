@@ -182,11 +182,6 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand"><Brand /></div>
-        <div className="workspace-switch">
-          <span className="workspace-avatar">{user.name.slice(0, 1).toUpperCase()}</span>
-          <span className="workspace-copy"><strong>My household</strong><small>Personal space</small></span>
-          <span className="workspace-dots" aria-hidden="true">···</span>
-        </div>
 
         <nav className="side-nav" aria-label="Main navigation">
           {user.role === 'admin' ? (
@@ -220,7 +215,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
           <div className="topbar-mobile-heading">
             <Brand compact />
           </div>
-          <div className="breadcrumb"><span>My household</span><Icon name="chevron" size={14} /><strong>{sectionTitle(activeSection)}</strong></div>
+          <strong className="topbar-page-title">{sectionTitle(activeSection)}</strong>
           <div className="topbar-actions">
             <span className="topbar-date">{new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date())}</span>
             <button className="profile-trigger" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="dialog" aria-controls="profile-settings">
@@ -279,15 +274,9 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
                   <div>
                     <h2 id="offers-heading">{activeSection === 'offers' ? 'All your eligible offers' : 'Offers picked for you'}</h2>
                   </div>
-                  <label className="day-select-wrap">
-                    <span><Icon name="clock" size={15} /> Valid on</span>
-                    <select value={day} onChange={handleDayChange} aria-label="Filter offers by valid day">
-                      {DAYS.map((name, index) => <option key={name} value={index}>{name}</option>)}
-                    </select>
-                  </label>
                 </div>
 
-                {wallet.length > 0 && (
+                {activeSection === 'offers' && wallet.length > 0 && (
                   <div className="wallet-context">
                     <span className="context-check"><Icon name="check" size={14} /></span>
                     <span><strong>{wallet.length}</strong> {wallet.length === 1 ? 'card' : 'cards'}</span>
@@ -317,32 +306,40 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
                       );
                     })}
                   </div>
-                  <label className="offer-search">
-                    <Icon name="search" size={17} />
-                    <input
-                      type="search"
-                      value={search}
-                      onChange={(event) => { setSearch(event.target.value); setOfferPage(1); }}
-                      placeholder="Search offers"
-                      aria-label="Search eligible offers"
-                    />
-                  </label>
-                  {wallet.length > 0 && (
-                    <label className="offer-card-filter">
-                      <Icon name="card" size={15} />
-                      <select
-                        value={offerCardFilter}
-                        onChange={(event) => { setOfferCardFilter(event.target.value); setOfferPage(1); }}
-                        aria-label="Filter offers by card"
-                      >
-                        <option value="">All cards</option>
-                        {Array.from(new Map(wallet.map((card) => [`${card.bank_name}::${card.card_name}`, card])).values()).map((card) => {
-                          const cardValue = `${card.bank_name}::${card.card_name}`;
-                          return <option key={`${card.master_card_id}-${card.cardholder_label}`} value={cardValue}>{card.bank_name} · {card.card_name}</option>;
-                        })}
+                  <div className="offer-filter-controls">
+                    <label className="day-select-wrap">
+                      <span><Icon name="clock" size={15} /> Valid on</span>
+                      <select value={day} onChange={handleDayChange} aria-label="Filter offers by valid day">
+                        {DAYS.map((name, index) => <option key={name} value={index}>{name}</option>)}
                       </select>
                     </label>
-                  )}
+                    <label className="offer-search">
+                      <Icon name="search" size={17} />
+                      <input
+                        type="search"
+                        value={search}
+                        onChange={(event) => { setSearch(event.target.value); setOfferPage(1); }}
+                        placeholder="Search offers"
+                        aria-label="Search eligible offers"
+                      />
+                    </label>
+                    {wallet.length > 0 && (
+                      <label className="offer-card-filter">
+                        <Icon name="card" size={15} />
+                        <select
+                          value={offerCardFilter}
+                          onChange={(event) => { setOfferCardFilter(event.target.value); setOfferPage(1); }}
+                          aria-label="Filter offers by card"
+                        >
+                          <option value="">All cards</option>
+                          {Array.from(new Map(wallet.map((card) => [`${card.bank_name}::${card.card_name}`, card])).values()).map((card) => {
+                            const cardValue = `${card.bank_name}::${card.card_name}`;
+                            return <option key={`${card.master_card_id}-${card.cardholder_label}`} value={cardValue}>{card.bank_name} · {card.card_name}</option>;
+                          })}
+                        </select>
+                      </label>
+                    )}
+                  </div>
                 </div>
 
                 {loading ? (

@@ -37,8 +37,13 @@ export function ProfilePage({ user, theme, onToggleTheme, onUserUpdated, onLogou
       <div className="profile-page-card">
         <div className="profile-page-identity">
           <span className="user-avatar profile-page-avatar">{user.name.slice(0, 1).toUpperCase()}</span>
-          <div><strong>{user.name}</strong><span>{user.email}</span></div>
-          <span className="profile-verified"><Icon name="check" size={14} /> Verified</span>
+          <div>
+            <strong className="verified-user-name">
+              <span>{user.name}</span>
+              <span className="verified-tick" role="img" aria-label="Email verified" title="Email verified"><Icon name="check" size={11} /></span>
+            </strong>
+            <span>{user.email}</span>
+          </div>
         </div>
 
         <div className="profile-appearance">

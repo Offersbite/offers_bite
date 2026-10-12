@@ -49,7 +49,7 @@ export default function App() {
   if (!authChecked) {
     return (
       <main className="session-loading">
-        <div className="loading-mark">c</div>
+        <div className="loading-mark">O</div>
         <span>Getting your savings space ready</span>
       </main>
     );

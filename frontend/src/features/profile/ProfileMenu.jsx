@@ -42,10 +42,15 @@ export function ProfileMenu({ user, onUserUpdated, onClose, onLogout }) {
     <section className="profile-menu" id="profile-settings" role="dialog" ref={panelRef} aria-label="Profile settings">
       <div className="profile-menu-header">
         <span className="user-avatar">{user.name.slice(0, 1).toUpperCase()}</span>
-        <div><strong>{user.name}</strong><span>{user.email}</span></div>
+        <div>
+          <strong className="verified-user-name">
+            <span>{user.name}</span>
+            <span className="verified-tick" role="img" aria-label="Email verified" title="Email verified"><Icon name="check" size={11} /></span>
+          </strong>
+          <span>{user.email}</span>
+        </div>
         <button className="icon-button" onClick={onClose} aria-label="Close profile"><Icon name="close" size={17} /></button>
       </div>
-      <div className="profile-verified"><Icon name="check" size={14} /> Email verified</div>
       <form onSubmit={saveProfile} className="profile-edit-form">
         <label htmlFor="profileName">Display name</label>
         <div className="profile-edit-row">
