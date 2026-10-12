@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Brand, Icon } from '../../components/Brand.jsx';
 import { ThemeToggle } from '../../components/ThemeToggle.jsx';
 import { ProfileMenu } from '../profile/ProfileMenu.jsx';
+import { ProfilePage } from '../profile/ProfilePage.jsx';
 import { WalletPanel } from '../wallet/WalletPanel.jsx';
 import { OfferCard } from './OfferCard.jsx';
 import { AdminPanel } from '../admin/AdminPanel.jsx';
@@ -28,8 +29,8 @@ const CATEGORIES = [
 
 function getDashboardSections(role) {
   return role === 'admin'
-    ? ['admin-overview', 'admin-users', 'admin-cards', 'admin-offers']
-    : ['overview', 'wallet', 'offers'];
+    ? ['admin-overview', 'admin-users', 'admin-cards', 'admin-offers', 'profile']
+    : ['overview', 'wallet', 'offers', 'profile'];
 }
 
 function getSavedSection(user) {
@@ -54,7 +55,6 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -175,14 +175,13 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
 
   function navigate(section) {
     setActiveSection(section);
-    setMobileNavOpen(false);
     setCategory('ALL');
     setSearch('');
   }
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar${mobileNavOpen ? ' sidebar-open' : ''}`}>
+      <aside className="sidebar">
         <div className="sidebar-brand"><Brand /></div>
         <div className="workspace-switch">
           <span className="workspace-avatar">{user.name.slice(0, 1).toUpperCase()}</span>
@@ -211,19 +210,17 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
         <div className="sidebar-user">
           <span className="user-avatar">{user.name.slice(0, 1).toUpperCase()}</span>
           <span className="sidebar-user-info"><strong>{user.name}</strong><small>Personal account</small></span>
-          <button className="icon-button side-user-menu" aria-label="Open profile" onClick={() => setProfileOpen(true)}>
+          <button className="icon-button side-user-menu" aria-label="Open account profile" onClick={() => navigate('profile')}>
             <Icon name="chevron" size={16} />
           </button>
         </div>
       </aside>
 
-      {mobileNavOpen && <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />}
-
       <main className="main-area">
         <header className="topbar">
-          <button className="mobile-menu-button icon-button" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}>
-            <span /><span /><span />
-          </button>
+          <div className="topbar-mobile-heading">
+            <Brand compact />
+          </div>
           <div className="breadcrumb"><span>My household</span><Icon name="chevron" size={14} /><strong>{sectionTitle(activeSection)}</strong></div>
           <div className="topbar-actions">
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
@@ -248,7 +245,9 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
         {toast && <div className="toast-message" role="status"><Icon name="check" size={16} />{toast}<button onClick={() => setToast('')} aria-label="Dismiss message">×</button></div>}
 
         <div className="page-content">
-          {user.role === 'admin' && activeSection.startsWith('admin-') ? (
+          {activeSection === 'profile' ? (
+            <ProfilePage user={user} onUserUpdated={onUserUpdated} onLogout={handleSignOut} />
+          ) : user.role === 'admin' && activeSection.startsWith('admin-') ? (
             <AdminPanel user={user} page={activeSection} onNavigate={navigate} />
           ) : activeSection === 'wallet' ? (
             <WalletPanel
@@ -389,6 +388,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
           )}
         </div>
       </main>
+      <MobileNavigation role={user.role} active={activeSection} onNavigate={navigate} />
     </div>
   );
 }
@@ -400,6 +400,39 @@ function NavButton({ id, active, onClick, icon, label, badge }) {
       <span>{label}</span>
       {badge && <span className="nav-badge">{badge}</span>}
     </button>
+  );
+}
+
+function MobileNavigation({ role, active, onNavigate }) {
+  const items = role === 'admin'
+    ? [
+      { id: 'admin-overview', icon: 'grid', label: 'Overview' },
+      { id: 'admin-users', icon: 'user', label: 'Users' },
+      { id: 'admin-cards', icon: 'card', label: 'Cards' },
+      { id: 'admin-offers', icon: 'spark', label: 'Offers' },
+      { id: 'profile', icon: 'user', label: 'Account' },
+    ]
+    : [
+      { id: 'overview', icon: 'grid', label: 'Overview' },
+      { id: 'wallet', icon: 'wallet', label: 'Cards' },
+      { id: 'offers', icon: 'spark', label: 'Offers' },
+      { id: 'profile', icon: 'user', label: 'Account' },
+    ];
+
+  return (
+    <nav className={`mobile-bottom-nav${role === 'admin' ? ' mobile-bottom-nav-admin' : ''}`} aria-label="Main navigation">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          className={`mobile-nav-item${active === item.id ? ' active' : ''}`}
+          onClick={() => onNavigate(item.id)}
+          aria-current={active === item.id ? 'page' : undefined}
+        >
+          <Icon name={item.icon} size={21} />
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -468,5 +501,6 @@ function sectionTitle(section) {
     'admin-users': 'Users',
     'admin-cards': 'Cards',
     'admin-offers': 'Offers',
+    profile: 'Account',
   })[section] || 'Overview';
 }
