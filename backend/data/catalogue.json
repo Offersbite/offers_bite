@@ -1,0 +1,48 @@
+{
+  "master_cards": [
+    {"id": 1, "bank_name": "HDFC Bank", "card_name": "Millennia Credit Card", "card_type": "CREDIT", "network": "VISA"},
+    {"id": 2, "bank_name": "ICICI Bank", "card_name": "Sapphiro Credit Card", "card_type": "CREDIT", "network": "MASTERCARD"},
+    {"id": 3, "bank_name": "SBI Card", "card_name": "Cashback Credit Card", "card_type": "CREDIT", "network": "VISA"},
+    {"id": 4, "bank_name": "Axis Bank", "card_name": "MyZone Credit Card", "card_type": "CREDIT", "network": "RUPAY"},
+    {"id": 5, "bank_name": "HDFC Bank", "card_name": "Salary Platinum Debit Card", "card_type": "DEBIT", "network": "VISA"},
+    {"id": 6, "bank_name": "Axis Bank", "card_name": "Liberty Debit Card", "card_type": "DEBIT", "network": "MASTERCARD"}
+  ],
+  "merchant_offers": [
+    {
+      "id": 1,
+      "merchant_name": "BookMyShow",
+      "category": "MOVIES",
+      "offer_headline": "Buy 1 Get 1 Free on Movie Tickets (Up to ₹500 off)",
+      "coupon_code": "BMSBOGO",
+      "min_spend": 400.0,
+      "max_discount": 500.0,
+      "valid_days": [5, 6, 0],
+      "applicable_master_card_ids": [2, 4],
+      "expires_on": {"$date": "2028-12-31T00:00:00Z"}
+    },
+    {
+      "id": 2,
+      "merchant_name": "Zepto",
+      "category": "GROCERY",
+      "offer_headline": "Flat ₹150 off on groceries above ₹599",
+      "coupon_code": "ZEPTO150",
+      "min_spend": 599.0,
+      "max_discount": 150.0,
+      "valid_days": [0, 1, 2, 3, 4, 5, 6],
+      "applicable_master_card_ids": [3, 1],
+      "expires_on": {"$date": "2028-12-31T00:00:00Z"}
+    },
+    {
+      "id": 3,
+      "merchant_name": "Swiggy",
+      "category": "FOOD",
+      "offer_headline": "Flat ₹120 off on Weekend Orders above ₹499",
+      "coupon_code": "WEEKEND120",
+      "min_spend": 499.0,
+      "max_discount": 120.0,
+      "valid_days": [5, 6, 0],
+      "applicable_master_card_ids": [5, 6],
+      "expires_on": {"$date": "2028-12-31T00:00:00Z"}
+    }
+  ]
+}
