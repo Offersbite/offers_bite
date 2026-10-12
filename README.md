@@ -3,6 +3,12 @@
 OffersBite uses a React/Vite frontend and a FastAPI backend backed by MongoDB.
 Docker setup is intentionally deferred.
 
+## Vercel
+
+The root `pyproject.toml` configures Vercel to load the FastAPI application
+from `backend.app.main:app`. Configure the backend environment variables in
+the Vercel project settings before deployment.
+
 ## Run locally
 
 1. Start MongoDB locally or provide an Atlas connection URI.
