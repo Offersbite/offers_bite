@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Brand, Icon } from '../../components/Brand.jsx';
-import { ThemeToggle } from '../../components/ThemeToggle.jsx';
 import { ProfileMenu } from '../profile/ProfileMenu.jsx';
 import { ProfilePage } from '../profile/ProfilePage.jsx';
 import { WalletPanel } from '../wallet/WalletPanel.jsx';
@@ -223,7 +222,6 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
           </div>
           <div className="breadcrumb"><span>My household</span><Icon name="chevron" size={14} /><strong>{sectionTitle(activeSection)}</strong></div>
           <div className="topbar-actions">
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             <span className="topbar-date">{new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date())}</span>
             <button className="profile-trigger" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="dialog" aria-controls="profile-settings">
               <span className="user-avatar user-avatar-small">{user.name.slice(0, 1).toUpperCase()}</span>
@@ -246,7 +244,13 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
 
         <div className="page-content">
           {activeSection === 'profile' ? (
-            <ProfilePage user={user} onUserUpdated={onUserUpdated} onLogout={handleSignOut} />
+            <ProfilePage
+              user={user}
+              theme={theme}
+              onToggleTheme={onToggleTheme}
+              onUserUpdated={onUserUpdated}
+              onLogout={handleSignOut}
+            />
           ) : user.role === 'admin' && activeSection.startsWith('admin-') ? (
             <AdminPanel user={user} page={activeSection} onNavigate={navigate} />
           ) : activeSection === 'wallet' ? (

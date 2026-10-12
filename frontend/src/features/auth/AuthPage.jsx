@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Brand, Icon } from '../../components/Brand.jsx';
-import { ThemeToggle } from '../../components/ThemeToggle.jsx';
 import {
   loginAccount,
   registerAccount,
@@ -8,7 +7,7 @@ import {
   verifyEmailCode,
 } from '../../services/authApi.js';
 
-export function AuthPage({ initialError = '', onAuthenticated, theme, onToggleTheme }) {
+export function AuthPage({ initialError = '', onAuthenticated }) {
   const [mode, setMode] = useState('login');
   const [stage, setStage] = useState('credentials');
   const [verificationEmail, setVerificationEmail] = useState('');
@@ -107,7 +106,6 @@ export function AuthPage({ initialError = '', onAuthenticated, theme, onToggleTh
       </section>
 
       <section className="auth-form-side">
-        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         <div className="auth-mobile-brand"><Brand /></div>
         <div className="auth-form-wrap">
           {stage === 'verification' ? (

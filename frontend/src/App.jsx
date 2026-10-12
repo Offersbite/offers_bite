@@ -5,8 +5,8 @@ import { getSessionUser } from './services/authApi.js';
 import './styles/global.css';
 
 function getInitialTheme() {
-  const savedTheme = window.localStorage.getItem('offersbite-theme');
-  return savedTheme === 'dark' ? 'dark' : 'light';
+  const savedTheme = window.localStorage.getItem('offersbite-theme-v2');
+  return savedTheme === 'light' ? 'light' : 'dark';
 }
 
 export default function App() {
@@ -18,7 +18,11 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem('offersbite-theme', theme);
+    window.localStorage.setItem('offersbite-theme-v2', theme);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute(
+      'content',
+      theme === 'dark' ? '#111815' : '#f7f8f5',
+    );
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
@@ -55,8 +59,6 @@ export default function App() {
     return (
       <AuthPage
         initialError={sessionError}
-        theme={theme}
-        onToggleTheme={toggleTheme}
         onAuthenticated={(signedInUser) => {
           setSessionError('');
           setUser(signedInUser);
