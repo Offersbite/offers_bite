@@ -19,6 +19,7 @@ def get_master_cards(_: CurrentUser) -> list[dict[str, Any]]:
             "card_name": card["card_name"],
             "card_type": card["card_type"],
             "network": card["network"],
+            "tier_category": card.get("tier_category", "STANDARD"),
         }
         for card in master_cards.find().sort("bank_name", ASCENDING)
     ]

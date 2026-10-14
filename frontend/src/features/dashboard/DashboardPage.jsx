@@ -1,3 +1,6 @@
+import { isCurrentOffer, nextOfferExpiryCheck } from '../../services/offerExpiry.js';
+import { confirmAction } from '../../services/alerts.js';
+import { useActionFeedback } from '../../components/useActionFeedback.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Brand, Icon } from '../../components/Brand.jsx';
 import { ProfileMenu } from '../profile/ProfileMenu.jsx';
@@ -12,6 +15,7 @@ import {
   getMatchedOffers,
   getWallet,
   removeWalletCard,
+  updateWalletCard,
 } from '../../services/perksApi.js';
 import { logoutAccount } from '../../services/authApi.js';
 
@@ -45,7 +49,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
   const [masterCards, setMasterCards] = useState([]);
   const [wallet, setWallet] = useState([]);
   const [offers, setOffers] = useState([]);
-  const [day, setDay] = useState(String(new Date().getDay()));
+  const [day, setDay] = useState('');
   const [category, setCategory] = useState('ALL');
   const [search, setSearch] = useState('');
   const [offerCardFilter, setOfferCardFilter] = useState('');
@@ -55,6 +59,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
   const [error, setError] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
   const [toast, setToast] = useState('');
+  useActionFeedback(toast, error);
 
   useEffect(() => {
     const sections = getDashboardSections(user.role);
@@ -76,7 +81,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
       ]);
       setMasterCards(catalogue);
       setWallet(currentWallet);
-      setOffers(matchedOffers);
+      setOffers(matchedOffers.filter((offer) => isCurrentOffer(offer)));
       setError('');
     } catch (requestError) {
       setError(requestError.message);
@@ -91,6 +96,23 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
     loadDashboard();
     return undefined;
   }, [loadDashboard, user.role]);
+
+  useEffect(() => {
+    let timer;
+    function removeExpired() {
+      setOffers((current) => current.filter((offer) => isCurrentOffer(offer)));
+      window.clearTimeout(timer);
+      timer = window.setTimeout(removeExpired, nextOfferExpiryCheck());
+    }
+    removeExpired();
+    document.addEventListener('visibilitychange', removeExpired);
+    window.addEventListener('focus', removeExpired);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', removeExpired);
+      window.removeEventListener('focus', removeExpired);
+    };
+  }, []);
 
   const visibleOffers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -136,6 +158,10 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
   }
 
   async function handleAddCard(payload) {
+    const card = masterCards.find((item) => item.id === payload.masterCardId);
+    if (!await confirmAction({ title: 'Add card to wallet?', text: `${card?.bank_name || payload.bankName} - ${card?.card_name || payload.cardName} (${payload.cardholderLabel})`, confirmText: 'Add card' })) return false;
+    setToast('');
+    setError('');
     setSaving(true);
     try {
       const result = await addWalletCard(payload);
@@ -150,7 +176,29 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
     }
   }
 
+  async function handleUpdateCard(cardId, payload) {
+    if (!await confirmAction({ title: 'Save card changes?', text: 'Update this card in your wallet and refresh eligible offers?', confirmText: 'Save changes' })) return false;
+    setSaving(true);
+    setToast('');
+    setError('');
+    try {
+      await updateWalletCard(cardId, payload);
+      await loadDashboard();
+      setToast('Card updated. Your eligible offers are refreshed.');
+      return true;
+    } catch (requestError) {
+      setError(requestError.message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleRemoveCard(cardId) {
+    const card = wallet.find((item) => item.id === cardId);
+    if (!await confirmAction({ title: 'Remove card?', text: `Remove ${card?.bank_name || ''} ${card?.card_name || 'this card'} from your wallet?`, confirmText: 'Remove card', danger: true })) return;
+    setToast('');
+    setError('');
     setSaving(true);
     try {
       await removeWalletCard(cardId);
@@ -215,7 +263,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
           <div className="topbar-mobile-heading">
             <Brand compact />
           </div>
-          <strong className="topbar-page-title">{sectionTitle(activeSection)}</strong>
+          <h1 className="topbar-page-title">{sectionTitle(activeSection)}</h1>
           <div className="topbar-actions">
             <span className="topbar-date">{new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date())}</span>
             <button className="profile-trigger" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="dialog" aria-controls="profile-settings">
@@ -226,7 +274,6 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
             {profileOpen && (
               <ProfileMenu
                 user={user}
-                onUserUpdated={onUserUpdated}
                 onClose={() => setProfileOpen(false)}
                 onLogout={handleSignOut}
               />
@@ -235,7 +282,6 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
         </header>
 
         {error && <div className="app-alert" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss error">×</button></div>}
-        {toast && <div className="toast-message" role="status"><Icon name="check" size={16} />{toast}<button onClick={() => setToast('')} aria-label="Dismiss message">×</button></div>}
 
         <div className="page-content">
           {activeSection === 'profile' ? (
@@ -256,6 +302,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
               saving={saving}
               error={error}
               onAdd={handleAddCard}
+              onEdit={handleUpdateCard}
               onRemove={handleRemoveCard}
             />
           ) : (
@@ -272,7 +319,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
               <section className="offers-section" aria-labelledby="offers-heading">
                 <div className="section-heading-row">
                   <div>
-                    <h2 id="offers-heading">{activeSection === 'offers' ? 'All your eligible offers' : 'Offers picked for you'}</h2>
+                    <h2 id="offers-heading" className={activeSection === 'offers' ? 'page-title' : undefined}>{activeSection === 'offers' ? 'All your eligible offers' : 'Offers picked for you'}</h2>
                   </div>
                 </div>
 
@@ -310,6 +357,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
                     <label className="day-select-wrap">
                       <span><Icon name="clock" size={15} /> Valid on</span>
                       <select value={day} onChange={handleDayChange} aria-label="Filter offers by valid day">
+                        <option value="">All days</option>
                         {DAYS.map((name, index) => <option key={name} value={index}>{name}</option>)}
                       </select>
                     </label>
@@ -355,8 +403,8 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
                 ) : visibleOffers.length === 0 ? (
                   <EmptyState
                     icon={search || category !== 'ALL' || offerCardFilter ? 'search' : 'spark'}
-                    title={search || category !== 'ALL' || offerCardFilter ? 'No matching offers' : `No offers for ${DAYS[Number(day)]}`}
-                    description={search || category !== 'ALL' || offerCardFilter ? 'No offers match the selected filters.' : 'No eligible offers are available for this day.'}
+                    title={search || category !== 'ALL' || offerCardFilter ? 'No matching offers' : (day === '' ? 'No eligible offers' : `No offers for ${DAYS[Number(day)]}`)}
+                    description={search || category !== 'ALL' || offerCardFilter ? 'No offers match the selected filters.' : (day === '' ? 'No eligible offers are currently available.' : 'No eligible offers are available for this day.')}
                     action={search || category !== 'ALL' || offerCardFilter ? 'Clear filters' : 'Manage cards'}
                     onAction={() => {
                       if (search || category !== 'ALL' || offerCardFilter) {
@@ -380,7 +428,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
                     <Pagination page={offerPage} pageSize={offerPageSize} total={visibleOffers.length} onPageChange={setOfferPage} />
                     <div className="results-note">
                       <span className="results-dot" />
-                      {visibleOffers.length} eligible {visibleOffers.length === 1 ? 'offer' : 'offers'} for {DAYS[Number(day)]}
+                      {visibleOffers.length} eligible {visibleOffers.length === 1 ? 'offer' : 'offers'} {day === '' ? 'across all days' : `for ${DAYS[Number(day)]}`}
                     </div>
                   </>
                 )}
@@ -493,15 +541,9 @@ function OfferLoading() {
   );
 }
 
+
 function sectionTitle(section) {
-  return ({
-    overview: 'Overview',
-    wallet: 'My cards',
-    offers: 'Eligible offers',
-    'admin-overview': 'Admin overview',
-    'admin-users': 'Users',
-    'admin-cards': 'Cards',
-    'admin-offers': 'Offers',
-    profile: 'Account',
-  })[section] || 'Overview';
+  return ({ overview: 'Overview', wallet: 'My cards', offers: 'Eligible offers',
+    'admin-overview': 'Overview', 'admin-users': 'Users', 'admin-cards': 'Cards',
+    'admin-offers': 'Offers', profile: 'Account' })[section] || 'Overview';
 }

@@ -33,6 +33,15 @@ export const createAdminCard = (card) =>
     body: JSON.stringify(card),
   });
 
+export const uploadAdminCards = (file) => {
+  const form = new FormData();
+  form.append('file', file);
+  return apiRequest('/api/admin/cards/bulk-upload', {
+    method: 'POST',
+    body: form,
+  });
+};
+
 export const updateAdminCard = (cardId, card) =>
   apiRequest(`/api/admin/cards/${encodeURIComponent(cardId)}`, {
     method: 'PATCH',

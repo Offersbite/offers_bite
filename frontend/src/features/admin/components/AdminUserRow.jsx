@@ -1,3 +1,4 @@
+import { confirmAction } from '../../../services/alerts.js';
 import { useEffect, useState } from 'react';
 import { Icon } from '../../../components/Brand.jsx';
 
@@ -71,7 +72,7 @@ export function AdminUserRow({ user, isSelf, saving, onSave, onDelete }) {
             </button>
           </>
         ) : (
-          <button className="admin-icon-action" type="button" title="Edit user" aria-label={`Edit ${user.email}`} disabled={saving} onClick={() => setEditing(true)}>
+          <button className="admin-icon-action" type="button" title="Edit user" aria-label={`Edit ${user.email}`} disabled={saving} onClick={async () => { if (await confirmAction({ title: 'Edit user?', text: `Open ${user.email} for editing?`, confirmText: 'Edit user' })) setEditing(true); }}>
             <Icon name="edit" size={16} />
           </button>
         )}

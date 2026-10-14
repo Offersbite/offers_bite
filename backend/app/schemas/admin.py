@@ -31,14 +31,20 @@ class MasterCardData(BaseModel):
     card_name: str = Field(min_length=1, max_length=120)
     card_type: Literal["CREDIT", "DEBIT"]
     network: Literal["VISA", "MASTERCARD", "RUPAY", "AMEX", "DINERS", "OTHER"]
+    tier_category: str = Field(default="STANDARD", min_length=1, max_length=80)
 
-    @field_validator("bank_name", "card_name")
+    @field_validator("bank_name", "card_name", "tier_category")
     @classmethod
     def trim_required_text(cls, value: str) -> str:
         value = value.strip()
         if not value:
             raise ValueError("This field must not be blank.")
         return value
+
+    @field_validator("tier_category")
+    @classmethod
+    def normalize_tier_category(cls, value: str) -> str:
+        return value.upper()
 
 
 class OfferData(BaseModel):

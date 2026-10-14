@@ -64,9 +64,16 @@ class AdminUserManagementTests(unittest.TestCase):
             offset=0,
         )
 
-        self.assertEqual(result, {"items": [], "total": 0})
-        self.users.count_documents.assert_called_once_with(query)
+        self.assertEqual(result, {"items": [], "total": 0, "counts": {"total": 0, "active": 0, "inactive": 0}})
+        self.users.count_documents.assert_any_call(query)
         self.users.find.assert_called_once_with(query)
+
+    def test_user_counts_are_independent_of_search_and_pagination(self) -> None:
+        self.users.count_documents.side_effect = [1, 12, 9]
+        self.users.find.return_value.sort.return_value.skip.return_value.limit.return_value = []
+        result = admin.get_admin_users(self.admin_user, search="member", role="user", status="active", limit=50, offset=50)
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["counts"], {"total": 12, "active": 9, "inactive": 3})
 
     def test_cannot_demote_last_active_admin(self) -> None:
         self.users.find_one.return_value = {

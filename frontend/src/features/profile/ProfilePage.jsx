@@ -1,3 +1,5 @@
+import { confirmAction, showToast } from '../../services/alerts.js';
+import { useActionFeedback } from '../../components/useActionFeedback.js';
 import { useState } from 'react';
 import { Icon } from '../../components/Brand.jsx';
 import { ThemeToggle } from '../../components/ThemeToggle.jsx';
@@ -7,16 +9,19 @@ export function ProfilePage({ user, theme, onToggleTheme, onUserUpdated, onLogou
   const [name, setName] = useState(user.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useActionFeedback('', error);
   const [saved, setSaved] = useState(false);
 
   async function saveProfile(event) {
     event.preventDefault();
+    if (!await confirmAction({ title: 'Save profile changes?', text: `Update your name to ${name.trim()}?`, confirmText: 'Save changes' })) return;
     setBusy(true);
     setError('');
     setSaved(false);
     try {
       const updated = await updateProfile({ name });
       onUserUpdated(updated);
+      showToast('Profile updated.');
       setName(updated.name);
       setSaved(true);
     } catch (requestError) {
@@ -28,10 +33,11 @@ export function ProfilePage({ user, theme, onToggleTheme, onUserUpdated, onLogou
 
   return (
     <section className="profile-page" aria-labelledby="profile-page-title">
-      <header className="profile-page-heading">
-        <span className="eyebrow"><span className="eyebrow-dot" /> ACCOUNT</span>
-        <h1 id="profile-page-title">Your profile</h1>
-        <p>Manage your account details and sign-in.</p>
+      <header className="page-intro">
+        <div>
+          <h1 className="page-title" id="profile-page-title">Your account</h1>
+          <p>Manage your account details and sign-in.</p>
+        </div>
       </header>
 
       <div className="profile-page-card">

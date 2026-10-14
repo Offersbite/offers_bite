@@ -10,6 +10,7 @@ export function Modal({ title, onClose, children, wide = false }) {
 
   useEffect(() => {
     function handleKeyDown(event) {
+      if (document.querySelector('.swal2-container:not(.swal2-toast-shown) .app-confirmation')) return;
       if (event.key === 'Escape') onCloseRef.current();
     }
     const previousOverflow = document.body.style.overflow;

@@ -1,3 +1,5 @@
+from app.services.offer_lifecycle import archive_expired_offers
+from app.services.catalogue_status import catalogue_status, catalogue_counts
 import re
 from hashlib import sha256
 from datetime import datetime, timezone
@@ -21,6 +23,12 @@ from app.schemas.admin import AdminUserUpdate, MasterCardData, OfferData
 from app.schemas.auth import AccountRegistration
 from app.services.catalogue import new_catalogue_id
 from app.services.auth import hash_password, issue_email_otp
+from app.services.card_import import (
+    MAX_UPLOAD_BYTES as MAX_CARD_UPLOAD_BYTES,
+    CardImportError,
+    parse_card_csv,
+    parse_card_workbook,
+)
 from app.services.offer_import import (
     MAX_UPLOAD_BYTES,
     OfferWorkbookError,
@@ -83,26 +91,23 @@ def _card_is_referenced(card_id: int) -> bool:
 
 def _admin_offer(offer: dict[str, Any]) -> dict[str, Any]:
     result = {key: value for key, value in offer.items() if key != "_id"}
+    result["status"] = catalogue_status(offer, "offers")
     return result
 
 
 @router.get("/summary")
-def get_admin_summary(_: AdminUser) -> dict[str, int]:
+def get_admin_summary(_: AdminUser) -> dict[str, Any]:
+    archive_expired_offers()
+    cards = catalogue_counts(list(master_cards.find({}, {"is_active": 1})), "cards")
+    offers = catalogue_counts(list(merchant_offers.find({}, {"is_active": 1, "is_matchable": 1, "valid_days": 1, "applicable_master_card_ids": 1, "expires_on": 1, "is_archived": 1, "archive_reason": 1})), "offers")
     return {
         "users": users.count_documents({}),
         "active_users": users.count_documents({"isActive": {"$ne": False}}),
-        "cards": master_cards.count_documents({}),
-        "offers": merchant_offers.count_documents({}),
-        "active_offers": merchant_offers.count_documents(
-            {
-                "is_matchable": {"$ne": False},
-                "valid_days": {"$ne": []},
-                "$or": [
-                    {"expires_on": {"$gte": datetime.now(timezone.utc)}},
-                    {"expires_on": None},
-                ],
-            }
-        ),
+        "cards": cards["total"],
+        "offers": offers["total"],
+        "active_offers": offers["active"],
+        "card_counts": cards,
+        "offer_counts": offers,
     }
 
 
@@ -130,7 +135,11 @@ def get_admin_users(
         ]}]
     total = users.count_documents(filters)
     records = users.find(filters).sort("createdAt", DESCENDING).skip(offset).limit(limit)
-    return {"items": [_user_record(user) for user in records], "total": total}
+    all_users = users.count_documents({})
+    active_users = users.count_documents({"isActive": {"$ne": False}})
+    return {"items": [_user_record(user) for user in records], "total": total,
+            "counts": {"total": all_users, "active": active_users,
+                       "inactive": max(0, all_users - active_users)}}
 
 
 @router.post("/users", status_code=202)
@@ -234,11 +243,12 @@ def delete_admin_user(user_id: str, admin: AdminUser) -> Response:
 
 @router.get("/cards")
 def get_admin_cards(_: AdminUser) -> list[dict[str, Any]]:
-    return list(
-        master_cards.find({}, {"_id": 0}).sort(
+    return [
+        {**card, "tier_category": card.get("tier_category", "STANDARD"), "status": catalogue_status(card, "cards")}
+        for card in master_cards.find({}, {"_id": 0}).sort(
             [("bank_name", ASCENDING), ("card_name", ASCENDING)]
         )
-    )
+    ]
 
 
 @router.post("/cards", status_code=201)
@@ -285,8 +295,89 @@ def delete_admin_card(card_id: int, _: AdminUser) -> Response:
     return Response(status_code=204)
 
 
+@router.post("/cards/bulk-upload", status_code=201)
+async def bulk_upload_admin_cards(
+    _: AdminUser,
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    source_file = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
+    extension = source_file.lower().rsplit(".", 1)[-1] if "." in source_file else ""
+    if extension not in {"csv", "xlsx"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Choose a .csv or .xlsx card catalogue file.",
+        )
+    try:
+        content = await file.read(MAX_CARD_UPLOAD_BYTES + 1)
+    finally:
+        await file.close()
+    if len(content) > MAX_CARD_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="The file exceeds the 10 MB upload limit.",
+        )
+
+    try:
+        cards = parse_card_csv(content) if extension == "csv" else parse_card_workbook(content)
+    except CardImportError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": str(exc), "errors": exc.errors},
+        ) from exc
+
+    existing = {
+        (
+            str(card.get("bank_name", "")).strip().casefold(),
+            str(card.get("card_name", "")).strip().casefold(),
+            str(card.get("card_type", "")).strip().upper(),
+            str(card.get("network", "")).strip().upper(),
+            str(card.get("tier_category", "STANDARD")).strip().upper(),
+        )
+        for card in master_cards.find({}, {"_id": 0, "bank_name": 1, "card_name": 1, "card_type": 1, "network": 1, "tier_category": 1})
+    }
+    created = 0
+    skipped = 0
+    seen = set(existing)
+    records = []
+    for card in cards:
+        identity = (
+            card["bank_name"].casefold(),
+            card["card_name"].casefold(),
+            card["card_type"],
+            card["network"],
+            card["tier_category"],
+        )
+        if identity in seen:
+            skipped += 1
+            continue
+        seen.add(identity)
+        record = {**card, "id": new_catalogue_id("master_cards", master_cards)}
+        records.append(record)
+
+    try:
+        if records:
+            master_cards.insert_many(records, ordered=True)
+            created = len(records)
+    except PyMongoError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "MongoDB could not save the uploaded card catalogue.",
+                "errors": [{"message": f"Database write failed ({type(exc).__name__})."}],
+            },
+        ) from exc
+
+    return {
+        "source_file": source_file,
+        "rows_total": len(cards),
+        "cards_created": created,
+        "duplicates_skipped": skipped,
+    }
+
+
 @router.get("/offers")
 def get_admin_offers(_: AdminUser) -> list[dict[str, Any]]:
+    archive_expired_offers()
     return [
         _admin_offer(offer)
         for offer in merchant_offers.find({}, {"_id": 0}).sort(

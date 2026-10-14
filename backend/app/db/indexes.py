@@ -55,3 +55,8 @@ def ensure_indexes() -> None:
         name="offers_source_row_unique",
         partialFilterExpression={"source_hash": {"$type": "string"}},
     )
+
+    merchant_offers.create_index(
+        [("is_archived", ASCENDING), ("expires_on", ASCENDING)],
+        name="offers_expiry_archive",
+    )

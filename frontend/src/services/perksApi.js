@@ -14,4 +14,10 @@ export const removeWalletCard = (cardId) =>
   apiRequest(`/api/wallet/${encodeURIComponent(cardId)}`, { method: 'DELETE' });
 
 export const getMatchedOffers = (day) =>
-  apiRequest(`/api/offers/matched?day=${encodeURIComponent(day)}`);
+  apiRequest(day === '' ? '/api/offers/matched?all_days=true' : `/api/offers/matched?day=${encodeURIComponent(day)}`);
+
+export const updateWalletCard = (cardId, card) =>
+  apiRequest(`/api/wallet/${encodeURIComponent(cardId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(card),
+  });

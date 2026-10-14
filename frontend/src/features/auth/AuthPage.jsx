@@ -1,3 +1,5 @@
+import { confirmAction, showToast } from '../../services/alerts.js';
+import { useActionFeedback } from '../../components/useActionFeedback.js';
 import { useState } from 'react';
 import { Brand, Icon } from '../../components/Brand.jsx';
 import {
@@ -14,13 +16,15 @@ export function AuthPage({ initialError = '', onAuthenticated }) {
   const [error, setError] = useState(initialError);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  useActionFeedback(notice, error);
 
   async function handleSubmit(event) {
     event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    if (!await confirmAction({ title: mode === 'register' ? 'Create account?' : 'Sign in?', text: `${mode === 'register' ? 'Register' : 'Sign in'} with ${values.email}?`, confirmText: mode === 'register' ? 'Create account' : 'Sign in' })) return;
     setBusy(true);
     setError('');
     setNotice('');
-    const values = Object.fromEntries(new FormData(event.currentTarget));
 
     try {
       if (mode === 'register') {
@@ -35,10 +39,12 @@ export function AuthPage({ initialError = '', onAuthenticated }) {
         return;
       }
 
-      onAuthenticated(await loginAccount({
+      const account = await loginAccount({
         email: values.email,
         password: values.password,
-      }));
+      });
+      showToast('Signed in successfully.');
+      onAuthenticated(account);
     } catch (requestError) {
       if (mode === 'login' && requestError.status === 403) {
         const email = String(values.email).trim().toLowerCase();
@@ -53,12 +59,15 @@ export function AuthPage({ initialError = '', onAuthenticated }) {
 
   async function handleVerify(event) {
     event.preventDefault();
+    const code = new FormData(event.currentTarget).get('otp');
+    if (!await confirmAction({ title: 'Verify email?', text: `Submit the verification code for ${verificationEmail}?`, confirmText: 'Verify email' })) return;
     setBusy(true);
     setError('');
     setNotice('');
-    const code = new FormData(event.currentTarget).get('otp');
     try {
-      onAuthenticated(await verifyEmailCode({ email: verificationEmail, otp: code }));
+      const account = await verifyEmailCode({ email: verificationEmail, otp: code });
+      showToast('Email verified successfully.');
+      onAuthenticated(account);
     } catch (requestError) {
       setError(requestError.message);
     } finally {

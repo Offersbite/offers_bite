@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { matchesOfferSearch } from '../../../services/offerSearch.js';
+import { CatalogueCounts, countCatalogue } from '../components/CatalogueCounts.jsx';
+import { confirmAction } from '../../../services/alerts.js';
+import { useActionFeedback } from '../../../components/useActionFeedback.js';
+import { BulkUploadPanel } from '../components/BulkUploadPanel.jsx';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../../../components/Brand.jsx';
 import {
   createAdminOffer,
@@ -36,16 +41,17 @@ export function AdminOffersPage({ onChanged }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState(null);
   const [search, setSearch] = useState('');
   const [bankFilter, setBankFilter] = useState('');
   const [merchantFilter, setMerchantFilter] = useState('');
   const [cardFilter, setCardFilter] = useState('');
   const [validDay, setValidDay] = useState('');
   const [page, setPage] = useState(1);
-  const fileInput = useRef(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const pageSize = 10;
+  useActionFeedback(message, error);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -66,17 +72,13 @@ export function AdminOffersPage({ onChanged }) {
   }, [loadData]);
 
   const visibleOffers = useMemo(() => {
-    const query = search.trim().toLowerCase();
     const selectedBankCardIds = new Set(cards
       .filter((card) => !bankFilter || card.bank_name === bankFilter)
       .map((card) => String(card.id)));
     return offers.filter((offer) => {
-      const matchesSearch = !query || [
-        offer.merchant_name,
-        offer.offer_headline,
-        offer.coupon_code,
-        offer.category,
-      ].some((value) => value?.toLowerCase().includes(query));
+      const archived = offer.is_archived || offer.status === 'expired';
+      if (showArchived ? !archived : archived) return false;
+      const matchesSearch = matchesOfferSearch(offer, cards, search);
       const matchesCard = !cardFilter || offer.applicable_master_card_ids
         ?.some((id) => String(id) === cardFilter);
       const matchesBank = !bankFilter || offer.applicable_master_card_ids
@@ -85,14 +87,15 @@ export function AdminOffersPage({ onChanged }) {
       const matchesDay = !validDay || offer.valid_days?.includes(Number(validDay));
       return matchesSearch && matchesCard && matchesBank && matchesMerchant && matchesDay;
     });
-  }, [bankFilter, cardFilter, cards, merchantFilter, offers, search, validDay]);
+  }, [bankFilter, cardFilter, cards, merchantFilter, offers, search, validDay, showArchived]);
   const pageOffers = visibleOffers.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage((current) => Math.min(current, Math.max(1, Math.ceil(visibleOffers.length / pageSize))));
   }, [visibleOffers.length]);
 
-  function editOffer(offer = null) {
+  async function editOffer(offer = null) {
+    if (offer && !await confirmAction({ title: 'Edit offer?', text: `Open the ${offer.merchant_name} offer for editing?`, confirmText: 'Edit offer' })) return;
     setEditingId(offer?.id ?? null);
     setForm(offer ? {
       merchant_name: offer.merchant_name,
@@ -116,32 +119,16 @@ export function AdminOffersPage({ onChanged }) {
     setForm(EMPTY_OFFER);
   }
 
-  async function uploadWorkbook(event) {
-    const [file] = event.target.files || [];
-    event.target.value = '';
-    if (!file) return;
-    setUploading(true);
-    setError('');
-    setMessage('');
-    setUploadResult(null);
-    try {
-      const result = await uploadAdminOffers(file);
-      setUploadResult(result);
-      setMessage(`Imported ${result.rows_imported} rows from ${file.name}.`);
-      await loadData();
-      onChanged();
-    } catch (requestError) {
-      setError(requestError.message);
-      const details = requestError.details;
-      if (details?.result) setUploadResult(details.result);
-      else if (details?.errors?.length) setUploadResult({ errors: details.errors });
-    } finally {
-      setUploading(false);
-    }
+  function downloadTemplate() {
+    const link = document.createElement('a');
+    link.href = `${import.meta.env.BASE_URL}templates/offersbite-offers-template.xlsx`;
+    link.download = 'offersbite-offers-template.xlsx';
+    link.click();
   }
 
   async function submitOffer(event) {
     event.preventDefault();
+    if (!await confirmAction({ title: editingId === null ? 'Add offer?' : 'Save offer changes?', text: `${form.merchant_name} - ${form.offer_headline}`, confirmText: editingId === null ? 'Add offer' : 'Save changes' })) return;
     setSaving(true);
     setError('');
     setMessage('');
@@ -170,7 +157,7 @@ export function AdminOffersPage({ onChanged }) {
   }
 
   async function removeOffer(offer) {
-    if (!window.confirm(`Delete the ${offer.merchant_name} offer?`)) return;
+    if (!await confirmAction({ title: 'Delete offer?', text: `Delete the ${offer.merchant_name} offer? This action cannot be undone.`, confirmText: 'Delete offer', danger: true })) return;
     setSaving(true);
     setError('');
     setMessage('');
@@ -195,27 +182,31 @@ export function AdminOffersPage({ onChanged }) {
       {message && <div className="admin-success" role="status">{message}</div>}
       <section className="admin-panel-card admin-full-list-card">
         <div className="admin-panel-heading">
-          <h2>Offers</h2>
+          <div className="catalogue-heading"><h1 className="page-title">Offers</h1>{!loading && <CatalogueCounts kind="Offers" counts={countCatalogue(offers)} />}</div>
           <div className="admin-list-actions">
-            <button type="button" className="button button-secondary" onClick={() => fileInput.current?.click()} disabled={uploading || saving}>
-              {uploading ? 'Uploading…' : 'Bulk upload Excel'}
-            </button>
-            <button type="button" className="button button-primary" onClick={() => editOffer()}>
-              <Icon name="plus" size={16} /> Add offer
-            </button>
-            <input
-              ref={fileInput}
-              className="admin-file-input"
-              type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              onChange={uploadWorkbook}
-            />
+            <button type="button" className="button button-secondary" onClick={() => setUploadOpen((open) => !open)} aria-expanded={uploadOpen} aria-controls="offers-bulk-upload" disabled={uploadBusy}><Icon name="upload" size={16} /> Bulk upload</button>
+            <button type="button" className="button button-primary" onClick={() => editOffer()}><Icon name="plus" size={16} /> Add offer</button>
           </div>
         </div>
+        {uploadOpen && (
+          <BulkUploadPanel onBusyChange={setUploadBusy} kind="offers" onUpload={uploadAdminOffers} onComplete={async () => { await loadData(); onChanged(); }} onDownloadTemplate={downloadTemplate}>
+            <p>One offer per row. Use these template columns in this order:</p>
+            <div className="card-bulk-columns">{['Bank Name', 'Coupon Code', 'Card Name', 'Card Type', 'Merchant', 'Category', 'Offer Headline', 'Max Discount (INR)', 'Min purchase', 'Min Tickets', 'Valid Days', 'Usage Limit', 'Expiry Date'].map((name) => <code key={name}>{name}</code>)}</div>
+            <p>Include Bank Name, Card Name, Card Type and Valid Days to match offers to cards.</p>
+            <p>Merchant and Offer Headline are required. All original columns, including Min Tickets and Usage Limit, are retained with each imported row.</p>
+            <p>Use CREDIT or DEBIT for card type, day names such as Saturday, Sunday or All days, and YYYY-MM-DD for expiry.</p>
+            <span className="card-bulk-duplicate-note"><Icon name="check" size={15} /> The import report shows saved, linked and unmatched rows.</span>
+          </BulkUploadPanel>
+        )}
+        <div className="offer-archive-tabs" role="group" aria-label="Offer records">
+          <button type="button" aria-pressed={!showArchived} onClick={() => { setShowArchived(false); setPage(1); }}>Current offers</button>
+          <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived(true); setPage(1); }}>Expired archive ({offers.filter((offer) => offer.is_archived || offer.status === 'expired').length})</button>
+        </div>
+        {showArchived && <p className="admin-import-note">Expired offers are kept here for tracking and excluded from the user portal.</p>}
         <ListToolbar
           search={search}
           onSearch={(value) => { setSearch(value); setPage(1); }}
-          placeholder="Search merchant or offer"
+          placeholder="Search merchant, bank, card or offer"
           filters={[
             { label: 'Bank', value: bankFilter, options: bankNames.map((value) => ({ value, label: value })), onChange: (value) => { setBankFilter(value); setPage(1); } },
             { label: 'Merchant', value: merchantFilter, options: merchantNames.map((value) => ({ value, label: value })), onChange: (value) => { setMerchantFilter(value); setPage(1); } },
@@ -223,25 +214,11 @@ export function AdminOffersPage({ onChanged }) {
             { label: 'Day', value: validDay, options: WEEKDAYS.map((label, value) => ({ value: String(value), label })), onChange: (value) => { setValidDay(value); setPage(1); } },
           ]}
         />
-        {uploadResult && (
-          <div className="admin-import-result" role="status">
-            {uploadResult.rows_imported != null ? (
-              <>
-                <strong>{uploadResult.rows_imported} / {uploadResult.rows_total} rows saved</strong>
-                <span>{uploadResult.cards_created} cards added · {uploadResult.card_matchable_rows} rows linked · {uploadResult.unmatched_rows} excluded from matching · {uploadResult.rows_without_expiry} without expiry</span>
-                {uploadResult.missing_rows?.length > 0 && <span>Missing rows: {uploadResult.missing_rows.map((row) => `${row.sheet} #${row.row}`).join(', ')}</span>}
-                {uploadResult.errors?.map((item, index) => <span key={`${item.sheet}-${item.row}-${index}`}>{item.sheet ? `${item.sheet}, row ${item.row}: ` : ''}{item.message}</span>)}
-              </>
-            ) : (
-              uploadResult.errors?.map((item, index) => <span key={`${item.sheet}-${item.row}-${index}`}>{item.sheet ? `${item.sheet}, row ${item.row}: ` : ''}{item.message}</span>)
-            )}
-          </div>
-        )}
         {loading ? (
           <div className="admin-loading"><span className="wallet-loader" /> Loading…</div>
         ) : (
           <div className="admin-table-scroll">
-            <table className="admin-table">
+            <table className="admin-table admin-offers-table">
               <thead><tr><th>Merchant</th><th>Category</th><th>Coupon</th><th>Bank / card</th><th>Valid days</th><th>Expires</th><th>Actions</th></tr></thead>
               <tbody>
                 {pageOffers.map((offer) => {
@@ -251,20 +228,20 @@ export function AdminOffersPage({ onChanged }) {
                     : offer.valid_days?.map((day) => WEEKDAYS[day]).filter(Boolean).join(', ') || '—';
                   return (
                     <tr key={offer.id}>
-                      <td data-label="Merchant"><strong>{offer.merchant_name}</strong><small>{offer.offer_headline}</small></td>
-                      <td data-label="Category">{offer.category}</td>
-                      <td data-label="Coupon">{offer.coupon_code || '—'}</td>
-                      <td data-label="Bank / card">{eligibleCards.length ? eligibleCards.map((card) => `${card.bank_name} · ${card.card_name}`).join(', ') : '—'}</td>
-                      <td data-label="Valid days">{offerDays}</td>
-                      <td data-label="Expires">{toDateInput(offer.expires_on) || 'No expiry'}</td>
+                      <td data-label="Merchant"><div className="admin-cell-value"><strong>{offer.merchant_name}</strong><small>{offer.offer_headline}</small>{offer.is_archived && <small className="archive-record-note">Archived {toDateInput(offer.archived_at)} - {offer.archive_reason || 'expired'}</small>}</div></td>
+                      <td data-label="Category"><div className="admin-cell-value">{offer.category}</div></td>
+                      <td data-label="Coupon"><div className="admin-cell-value">{offer.coupon_code || '—'}</div></td>
+                      <td data-label="Bank / card"><div className="admin-cell-value">{eligibleCards.length ? eligibleCards.map((card) => `${card.bank_name} · ${card.card_name}`).join(', ') : '—'}</div></td>
+                      <td data-label="Valid days"><div className="admin-cell-value">{offerDays}</div></td>
+                      <td data-label="Expires"><div className="admin-cell-value">{toDateInput(offer.expires_on) || 'No expiry'}</div></td>
                       <td data-label="Actions" className="admin-actions-cell">
-                        <button className="admin-icon-action" type="button" title="Edit offer" aria-label={`Edit ${offer.merchant_name} offer`} disabled={saving} onClick={() => editOffer(offer)}><Icon name="edit" size={16} /></button>
-                        <button className="admin-icon-action danger" type="button" title="Delete offer" aria-label={`Delete ${offer.merchant_name} offer`} disabled={saving} onClick={() => removeOffer(offer)}><Icon name="trash" size={16} /></button>
+                        <button className="admin-icon-action" type="button" title="Edit offer" aria-label={`Edit ${offer.merchant_name} offer`} disabled={saving || offer.is_archived || offer.status === 'expired'} onClick={() => editOffer(offer)}><Icon name="edit" size={16} /><span className="responsive-action-label">Edit</span></button>
+                        <button className="admin-icon-action danger" type="button" title="Delete offer" aria-label={`Delete ${offer.merchant_name} offer`} disabled={saving} onClick={() => removeOffer(offer)}><Icon name="trash" size={16} /><span className="responsive-action-label">Delete</span></button>
                       </td>
                     </tr>
                   );
                 })}
-                {visibleOffers.length === 0 && <tr><td colSpan="7" className="admin-empty">{offers.length ? 'No offers match these filters.' : 'No offers.'}</td></tr>}
+                {visibleOffers.length === 0 && <tr><td colSpan="7" className="admin-empty">{showArchived ? 'No expired offers in the archive.' : offers.length ? 'No current offers match these filters.' : 'No offers.'}</td></tr>}
               </tbody>
             </table>
           </div>

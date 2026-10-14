@@ -1,3 +1,6 @@
+import { CatalogueCounts } from '../components/CatalogueCounts.jsx';
+import { confirmAction } from '../../../services/alerts.js';
+import { useActionFeedback } from '../../../components/useActionFeedback.js';
 import { useCallback, useEffect, useState } from 'react';
 import {
   createAdminUser,
@@ -14,6 +17,7 @@ import { Icon } from '../../../components/Brand.jsx';
 export function AdminUsersPage({ user: currentAdmin, onChanged }) {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState(null);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('');
@@ -24,6 +28,7 @@ export function AdminUsersPage({ user: currentAdmin, onChanged }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  useActionFeedback(message, error);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -32,6 +37,7 @@ export function AdminUsersPage({ user: currentAdmin, onChanged }) {
       const result = await getAdminUsers(search, offset, role, status);
       setUsers(result.items);
       setTotal(result.total);
+      setCounts(result.counts);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -44,6 +50,7 @@ export function AdminUsersPage({ user: currentAdmin, onChanged }) {
   }, [loadUsers]);
 
   async function saveUser(user, changes) {
+    if (!await confirmAction({ title: 'Save account changes?', text: `Update the account for ${user.email}?`, confirmText: 'Save changes' })) return false;
     setSaving(true);
     setError('');
     setMessage('');
@@ -63,6 +70,7 @@ export function AdminUsersPage({ user: currentAdmin, onChanged }) {
 
   async function submitNewUser(event) {
     event.preventDefault();
+    if (!await confirmAction({ title: 'Create user?', text: `Create an account and send a verification email to ${newUser.email}?`, confirmText: 'Create user' })) return;
     setSaving(true);
     setError('');
     setMessage('');
@@ -85,7 +93,7 @@ export function AdminUsersPage({ user: currentAdmin, onChanged }) {
   }
 
   async function removeUser(user) {
-    if (!window.confirm(`Permanently delete ${user.email} and their account data?`)) return;
+    if (!await confirmAction({ title: 'Delete user?', text: `Permanently delete ${user.email} and their account data?`, confirmText: 'Delete user', danger: true })) return;
     setSaving(true);
     setError('');
     setMessage('');
@@ -104,7 +112,7 @@ export function AdminUsersPage({ user: currentAdmin, onChanged }) {
   return (
     <section className="admin-panel-card" aria-label="User management">
       <div className="admin-panel-heading">
-        <h2>Users</h2>
+        <div className="catalogue-heading"><h1 className="page-title">Users</h1>{counts && <CatalogueCounts kind="Users" counts={counts} />}</div>
         <button className="button button-primary" onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> Add user</button>
       </div>
 

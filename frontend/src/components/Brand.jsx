@@ -5,7 +5,7 @@ export function Brand({ inverse = false, compact = false }) {
       href="#home"
       aria-label="OffersBite home"
     >
-      <span className="brand-mark" aria-hidden="true">o</span>
+      <span className="brand-mark" aria-hidden="true">O</span>
       <span className="brand-word">Offers<span>Bite</span></span>
     </a>
   );
@@ -39,6 +39,8 @@ export function Icon({ name, size = 20, className }) {
     bed: <><path d="M3 18V6m0 9h18v5M3 12h18a2 2 0 0 1 2 2v3H3" /><circle cx="7" cy="9" r="2" /></>,
     sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></>,
     moon: <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z" />,
+    refresh: <><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" /></>,
+    upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></>,
   };
 
   return (
