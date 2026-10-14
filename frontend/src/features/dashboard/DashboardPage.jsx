@@ -212,6 +212,7 @@ export function DashboardPage({ user, onUserUpdated, onLogout, theme, onToggleTh
   }
 
   async function handleSignOut() {
+    if (!await confirmAction({ title: 'Sign out?', text: 'Sign out of your account?', confirmText: 'Sign out' })) return;
     try {
       await logoutAccount();
       onLogout();

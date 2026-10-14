@@ -21,7 +21,7 @@ export function AuthPage({ initialError = '', onAuthenticated }) {
   async function handleSubmit(event) {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
-    if (!await confirmAction({ title: mode === 'register' ? 'Create account?' : 'Sign in?', text: `${mode === 'register' ? 'Register' : 'Sign in'} with ${values.email}?`, confirmText: mode === 'register' ? 'Create account' : 'Sign in' })) return;
+    if (mode === 'register' && !await confirmAction({ title: 'Create account?', text: `Register with ${values.email}?`, confirmText: 'Create account' })) return;
     setBusy(true);
     setError('');
     setNotice('');
